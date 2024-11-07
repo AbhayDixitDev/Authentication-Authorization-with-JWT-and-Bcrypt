@@ -2,9 +2,10 @@ const express = require("express");
 const app = express();
 const port = 3000;
 const userModel = require("./models/user");
-
+const bcrypt = require("bcrypt");
 const cookieParser = require("cookie-parser");
 const path = require("path");
+const jwt = require("jsonwebtoken");
 
 app.set("view engine", "ejs");
 app.use(express.json());
@@ -15,30 +16,44 @@ app.use(cookieParser());
 app.get("/", (req, res) => {
   res.render("index");
 });
-app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const user = await userModel.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
-    const token = jwt.sign({ userId: user._id }, "your-secret-key", { expiresIn: "1h" });
-    res.cookie("token", token, { httpOnly: true });
-    res.json({ message: "Logged in successfully" });
-  } catch (error) {
-    res.status(500).json({ error: "Server error" });
-  }
-});
 
 app.post("/create", async (req, res) => {
-  const { username, email, password, age } = req.body;
-  const createdUser = await userModel({ username, email, password, age });
+  let { username, email, password, age } = req.body;
+  bcrypt.genSalt(10,(err,salt)=>{
+    bcrypt.hash(password, salt,async(err,hash)=>{
+      const createdUser = await userModel.create({ username, email, password:hash, age });
+     
+
+
   res.send(createdUser);
+    });
+  }); 
+  
 });
+
+
+app.get("/logout",function(req,res){
+   res.cookie("token","")
+   res.redirect("/")
+})
+
+app.get("/login",function(req,res){
+     res.render('login')
+})
+// \P
+app.post("/login",async function(req,res){
+  let user=await userModel.findOne({email:req.body.email});
+  if(!user) return res.send("something is wrong");
+
+  bcrypt.compare(req.body.password,user.password,function (err,result){
+    if(result){
+     let token=jwt.sign({email: user.email},"shhhh");
+     res.cookie("token",token)
+     res.send("yes you can login")
+    }
+    else res.send("something is wrong");
+  })
+})
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
